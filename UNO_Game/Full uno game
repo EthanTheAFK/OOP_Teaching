@@ -1,1 +1,358 @@
 
+# Ethan game:
+
+import random
+
+# ================= COLORS =================
+
+COLORS = {
+    "Red": "\033[91m",
+    "Blue": "\033[94m",
+    "Green": "\033[92m",
+    "Yellow": "\033[93m",
+    "Wild": "\033[95m",
+    "END": "\033[0m"
+}
+
+
+# ================= CARD =================
+
+class Card:
+    def __init__(self, color, value):
+        self.color = color
+        self.value = value
+
+    def can_play_on(self, top_card):
+        return (
+            self.color == "Wild"
+            or self.color == top_card.color
+            or self.value == top_card.value
+        )
+
+    def __str__(self):
+        color = COLORS.get(self.color, "")
+        end = COLORS["END"]
+
+        return (
+            f"{color}"
+            f"[{self.color} {self.value}]"
+            f"{end}"
+        )
+
+
+# ================= DECK =================
+
+class Deck:
+    def __init__(self):
+        self.cards = []
+
+        colors = ["Red", "Blue", "Green", "Yellow"]
+
+        for color in colors:
+
+            # One 0 card
+            self.cards.append(Card(color, "0"))
+
+            # Two copies of 1-9
+            for num in range(1, 10):
+                self.cards.append(Card(color, str(num)))
+                self.cards.append(Card(color, str(num)))
+
+            # Two copies of action cards
+            for _ in range(2):
+                self.cards.append(Card(color, "Skip"))
+                self.cards.append(Card(color, "Reverse"))
+                self.cards.append(Card(color, "+2"))
+
+        # Wild cards
+        for _ in range(4):
+            self.cards.append(Card("Wild", "Wild"))
+            self.cards.append(Card("Wild", "+4"))
+
+        random.shuffle(self.cards)
+
+    def draw(self):
+        if len(self.cards) > 0:
+            return self.cards.pop()
+        return None
+
+
+# ================= PLAYER =================
+
+class Player:
+    def __init__(self, name):
+        self.name = name
+        self.hand = []
+
+    def draw_card(self, deck):
+        card = deck.draw()
+        if card:
+            self.hand.append(card)
+
+    def show_hand(self):
+        print("\nYour Cards:")
+
+        for i, card in enumerate(self.hand):
+            print(f"{i}: {card}")
+
+
+# ================= GAME =================
+
+class UnoGame:
+
+    def __init__(self):
+
+        self.deck = Deck()
+
+        self.players = [
+            Player("Player 1"),
+            Player("Player 2")
+        ]
+
+        # Deal 5 cards
+        for player in self.players:
+            for _ in range(5):
+                player.draw_card(self.deck)
+
+        # Starting card
+        self.top_card = self.deck.draw()
+
+        while self.top_card.color == "Wild":
+            self.top_card = self.deck.draw()
+
+        self.current_player = 0
+        self.direction = 1
+
+        self.skip_next = False
+        self.draw_two_next = False
+        self.draw_four_next = False
+
+    # ---------- Next Player ----------
+
+    def next_player(self):
+        self.current_player = (
+            self.current_player + self.direction
+        ) % len(self.players)
+
+    # ---------- Choose Color ----------
+
+    def choose_color(self):
+
+        colors = ["Red", "Blue", "Green", "Yellow"]
+
+        while True:
+
+            print("\nChoose a color:")
+
+            for i, color in enumerate(colors):
+                print(f"{i}: {color}")
+
+            try:
+                choice = int(input("> "))
+
+                if 0 <= choice < 4:
+                    return colors[choice]
+
+            except:
+                pass
+
+            print("Invalid choice.")
+
+    # ---------- Run Game ----------
+
+    def run(self):
+
+        while True:
+
+            player = self.players[self.current_player]
+
+            # Draw Two Effect
+            if self.draw_two_next:
+
+                print(f"\n{player.name} draws 2 cards!")
+
+                for _ in range(2):
+                    player.draw_card(self.deck)
+
+                self.draw_two_next = False
+                self.next_player()
+                continue
+
+            # Draw Four Effect
+            if self.draw_four_next:
+
+                print(f"\n{player.name} draws 4 cards!")
+
+                for _ in range(4):
+                    player.draw_card(self.deck)
+
+                self.draw_four_next = False
+                self.next_player()
+                continue
+
+            # Skip Effect
+            if self.skip_next:
+
+                print(f"\n{player.name}'s turn is skipped!")
+
+                self.skip_next = False
+                self.next_player()
+                continue
+
+            print("\n" + "=" * 50)
+            print(f"TOP CARD: {self.top_card}")
+            print(f"\n{player.name}'s Turn")
+
+            player.show_hand()
+
+            try:
+
+                choice = int(
+                    input(
+                        "\nChoose card index: "
+                    )
+                )
+
+                if choice < 0 or choice >= len(player.hand):
+                    print("Invalid card.")
+                    continue
+
+                chosen_card = player.hand[choice]
+
+                if chosen_card.can_play_on(
+                        self.top_card):
+
+                    played_card = player.hand.pop(
+                        choice
+                    )
+
+                    self.top_card = played_card
+
+                    print(
+                        f"\n{player.name} played "
+                        f"{played_card}"
+                    )
+
+                    # ---------- Skip ----------
+
+                    if played_card.value == "Skip":
+
+                        print(
+                            "Next player skipped!"
+                        )
+
+                        self.skip_next = True
+
+                    # ---------- Reverse ----------
+
+                    elif played_card.value == "Reverse":
+
+                        print(
+                            "Direction reversed!"
+                        )
+
+                        self.direction *= -1
+
+                    # ---------- Draw Two ----------
+
+                    elif played_card.value == "+2":
+
+                        print(
+                            "Next player draws 2!"
+                        )
+
+                        self.draw_two_next = True
+
+                    # ---------- Wild ----------
+
+                    elif played_card.value == "Wild":
+
+                        new_color = (
+                            self.choose_color()
+                        )
+
+                        self.top_card.color = (
+                            new_color
+                        )
+
+                        print(
+                            f"Color changed to "
+                            f"{new_color}"
+                        )
+
+                    # ---------- Wild Draw Four ----------
+
+                    elif played_card.value == "+4":
+
+                        new_color = (
+                            self.choose_color()
+                        )
+
+                        self.top_card.color = (
+                            new_color
+                        )
+
+                        print(
+                            f"Color changed to "
+                            f"{new_color}"
+                        )
+
+                        self.draw_four_next = True
+
+                    # ---------- UNO ----------
+
+                    if len(player.hand) == 1:
+
+                        print(
+                            f"\n{player.name} "
+                            f"shouts UNO!"
+                        )
+
+                    # ---------- WIN ----------
+
+                    if len(player.hand) == 0:
+
+                        print(
+                            "\n"
+                            + "=" * 50
+                        )
+
+                        print(
+                            f"🏆 {player.name} WINS!"
+                        )
+
+                        print(
+                            "=" * 50
+                        )
+
+                        break
+
+                    self.next_player()
+
+                else:
+
+                    print(
+                        "\nThat card "
+                        "cannot be played."
+                    )
+
+                    print(
+                        "Drawing one card..."
+                    )
+
+                    player.draw_card(
+                        self.deck
+                    )
+
+                    self.next_player()
+
+            except ValueError:
+                print(
+                    "Enter a valid number."
+                )
+
+
+# ================= START GAME =================
+
+game = UnoGame()
+game.run()
